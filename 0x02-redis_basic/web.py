@@ -4,31 +4,20 @@
 
 import redis
 import requests
-from functools import wraps
-from typing import Callable
 
 
-cl = redis.Redis()
+rc = redis.Redis()
+count = 0
 
 
-def cache(method: Callable) -> Callable:
-    """Cache the result of a method in Redis"""
-    @wraps(method)
-    def wrapper(url) -> str:
-        """Wrapper func for the method"""
-        cl.incr(f'count:{url}')
-        result = cl.get(f'result:{url}')
-        if result:
-            return result.decode('utf-8')
-        result = method(url)
-        cl.set(f'count:{url}', 0)
-        cl.setex(f'result:{url}', 10, result)
-        return result
-    return wrapper
-
-
-@cache
 def get_page(url: str) -> str:
-    """Gets the HTML content of a URL"""
-    res = requests.get(url)
-    return res.text
+    """Get page and cach value"""
+    rc.set(f"cached:{url}", count)
+    resp = requests.get(url)
+    rc.incr(f"count:{url}")
+    rc.setex(f"cached:{url}", 10, rc.get(f"cached:{url}"))
+    return resp.text
+
+
+if __name__ == "__main__":
+    get_page('http://slowwly.robertomurray.co.uk')
