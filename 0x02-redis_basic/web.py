@@ -7,18 +7,16 @@ import requests
 
 
 cl = redis.Redis()
+num = 0
 
 
 def get_page(url: str) -> str:
     """Gets page and caches its content using Redis"""
-    cont = cl.get(f"cached:{url}")
-    if cont:
-        return cont.decode('utf-8')
+    cl.set(f"cached:{url}", num)
 
     r = requests.get(url)
-    r.raise_for_status()
 
-    cl.setex(f"cached:{url}", 10, r.text)
+    cl.setex(f"cached:{url}", 10, cl.get(f"cached:{url}"))
     cl.incr(f"count:{url}")
     return r.text
 
