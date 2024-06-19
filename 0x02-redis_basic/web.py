@@ -4,22 +4,43 @@
 
 import redis
 import requests
+from functools import wraps
+from typing import Callable
 
 
 cl = redis.Redis()
-count = 0
 
 
+def count(method: Callable) -> Callable:
+    """Count the times a method is called"""
+    @wraps(method)
+    def wrapper(url: str) -> str:
+        """Wrapper func for the method"""
+        key = f"count:{url}"
+        cl.incr(key)
+        return method(url)
+    return wrapper
+
+
+def cache(method: Callable) -> Callable:
+    """Cache the result of a method in Redis"""
+    @wraps(method)
+    def wrapper(url: str) -> str:
+        """Wrapper func for the method"""
+        key = f"page:{url}"
+        res = cl.get(key)
+        if res:
+            return res.decode('utf-8')
+
+        result = method(url)
+        cl.setex(key, 10, result)
+        return result
+    return wrapper
+
+
+@count
+@cache
 def get_page(url: str) -> str:
-    """Gets page and caches its content using Redis"""
-    cl.set(f"cached:{url}", count)
-
-    r = requests.get(url)
-
-    cl.incr(f"count:{url}")
-    cl.setex(f"cached:{url}", 10, cl.get(f"cached:{url}"))
-    return r.text
-
-
-if __name__ == "__main__":
-    get_page('http://slowwly.robertomurray.co.uk')
+    """Gets the HTML content of a URL"""
+    response = requests.get(url)
+    return response.text
