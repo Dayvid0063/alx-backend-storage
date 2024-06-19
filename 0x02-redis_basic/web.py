@@ -14,10 +14,14 @@ def get_page(url: str) -> str:
     count_key = f"count:{url}"
     redis_client.incr(count_key)
 
-    response = requests.get(url)
-    hc = response.text
-
     cache_key = f"content:{url}"
+    cc = redis_client.get(cache_key)
+    if cc:
+        return cc.decode('utf-8')
+
+    response = requests.get(
+        f"http://slowwly.robertomurray.co.uk/delay/1000/url/{url}")
+    hc = response.text
     redis_client.setex(cache_key, 10, hc)
 
     return hc
