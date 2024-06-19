@@ -22,8 +22,8 @@ def count_calls(method: Callable) -> Callable:
 def call_history(method: Callable) -> Callable:
     """Store the history of inputs and outputs"""
     key = method.__qualname__
-    inputs = f"{key}:inputs"
-    outputs = f"{key}:outputs"
+    inputs = key + ":inputs"
+    outputs = key + ":outputs"
 
     @wraps(method)
     def wrapper(self, *args, **kwargs):
@@ -38,16 +38,15 @@ def call_history(method: Callable) -> Callable:
 def replay(method: Callable) -> None:
     """Replays the history of a method"""
     key = method.__qualname__
-    redis_client = method.__self__._redis
-    call_count = int(redis_client.get(key) or 0)
-    print(f"{key} was called {call_count} times:")
+    redis_client = redis.Redis()
+    call_count = redis_client.get(key).decode("utf-8")
+    print("{} was called {} times:".format(key, call_count))
 
-    inputs = redis_client.lrange(f"{key}:inputs", 0, -1)
-    outputs = redis_client.lrange(f"{key}:outputs", 0, -1)
-
-    for input_args, output in zip(inputs, outputs):
-        print(f"{key}(*{input_args.decode
-                        ('utf-8')}) -> {output.decode('utf-8')}")
+    inputs = redis_client.lrange(key + ":inputs", 0, -1)
+    outputs = redis_client.lrange(key + ":outputs", 0, -1)
+    for in_arg, out in zip(inputs, outputs):
+        print("{}(*{}) -> {}".format(key, in_arg.decode('utf-8'),
+                                     out.decode('utf-8')))
 
 
 class Cache:
@@ -65,13 +64,11 @@ class Cache:
         self._redis.set(info, data)
         return info
 
-    def get(self,
-            key: str,
-            fn: Optional[Callable] = None) -> Union[
-                str, bytes, int, float, None]:
-        """Get data from Redis cache"""
+    def get(self, key: str, fn: Optional[Callable] = None)\
+            -> Union[str, bytes, int, float, None]:
+        """Get data from redis cache"""
         data = self._redis.get(key)
-        if data is not None and fn is not None:
+        if data is not None and fn is not None and callable(fn):
             return fn(data)
         return data
 
