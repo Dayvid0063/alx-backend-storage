@@ -21,3 +21,7 @@ def get_page(url: str) -> str:
     cl.setex(f"cached:{url}", 10, r.text)
     cl.incr(f"count:{url}")
     return r.text
+
+
+if __name__ == "__main__":
+    get_page('http://slowwly.robertomurray.co.uk')
