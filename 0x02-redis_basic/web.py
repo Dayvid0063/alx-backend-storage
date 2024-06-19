@@ -2,22 +2,42 @@
 """Web caching using Redis"""
 
 
-import redis
 import requests
+import redis
+from functools import wraps
 
 
-rc = redis.Redis()
-count = 0
+cl = redis.Redis()
 
 
-def get_page(url: str) -> str:
-    """Get page and cach value"""
-    rc.set(f"cached:{url}", count)
-    resp = requests.get(url)
-    rc.incr(f"count:{url}")
-    rc.setex(f"cached:{url}", 10, rc.get(f"cached:{url}"))
-    return resp.text
+def count(method):
+    """Count the times a URL is accessed"""
+    @wraps(method)
+    def wrapper(url):
+        key = f"count:{url}"
+        cl.incr(key)
+        return method(url)
+    return wrapper
 
 
-if __name__ == "__main__":
-    get_page('http://slowwly.robertomurray.co.uk')
+def cache(method):
+    """Cache URL responses with expiration"""
+    @wraps(method)
+    def wrapper(url):
+        key = f"cache:{url}"
+        c_res = cl.get(key)
+        if c_res:
+            return c_res.decode('utf-8')
+
+        result = method(url)
+        cl.setex(key, 10, result)
+        return result
+    return wrapper
+
+
+@count
+@cache
+def get_page(url):
+    """Gets the HTML content of a URL"""
+    response = requests.get(url)
+    return response.text
